@@ -3,50 +3,54 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"sync"
 	"time"
 
 	"github.com/jszwec/csvutil"
 	"github.com/sparrc/go-ping"
 )
 
-// Plant is ...
-type Plant struct {
+const (
+	pingCount   = 1
+	pingTimeout = 3 * time.Second
+)
+
+type plant struct {
 	Name     string `csv:"name"`
 	Hostname string `csv:"hostname"`
 }
 
-// Ping is ...
-func (p Plant) Ping(wg *sync.WaitGroup) {
-	fmt.Println(p.Name, p.Hostname)
+func (p plant) ping() {
 	pinger, err := ping.NewPinger(p.Hostname)
 	if err != nil {
-		panic(err)
+		fmt.Println(p.Name, ": [ERROR]", p.Hostname, "no such host.")
+		return
 	}
 
-	pinger.Count = 5
-	pinger.Timeout = 10 * time.Second
+	pinger.Count = pingCount
+	pinger.Timeout = pingTimeout
 	pinger.Run()
 
-	fmt.Println(pinger.Statistics())
-	wg.Done()
+	stats := pinger.Statistics()
+	if stats.PacketLoss == 100 {
+		fmt.Println(p.Name, ": [ERROR]")
+	} else if stats.PacketLoss > 0 {
+		fmt.Println(p.Name, ": [WARN]")
+	} else {
+		fmt.Println(p.Name, ": [SUCCESS]")
+	}
 }
 
-// PingCsv is
-func PingCsv(f string) {
-	var plants []Plant
+func pingCsv(f string) {
+	var plants []plant
 	b, _ := ioutil.ReadFile(f)
 	csvutil.Unmarshal(b, &plants)
 
-	wg := new(sync.WaitGroup)
 	for _, p := range plants {
-		wg.Add(1)
-		go p.Ping(wg)
+		p.ping()
 	}
-	wg.Wait()
 }
 
 func main() {
-	filename := "default.csv"
-	PingCsv(filename)
+	filename := "config/default.csv"
+	pingCsv(filename)
 }
