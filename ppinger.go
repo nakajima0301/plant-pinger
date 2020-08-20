@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"time"
@@ -24,7 +25,6 @@ type hosts struct {
 func (h *hosts) ping() {
 	pinger, err := ping.NewPinger(h.Hostname)
 	if err != nil {
-		fmt.Println(h.Name, "[ERROR]", h.Hostname, "no such host.")
 		h.hasError = true
 		return
 	}
@@ -37,8 +37,8 @@ func (h *hosts) ping() {
 }
 
 func (h *hosts) result() {
-	if !h.hasError {
-		fmt.Println(h.Name, h.Stats)
+	if h.hasError {
+		fmt.Println("Error:", h.Name, h.Hostname)
 	}
 }
 
@@ -51,8 +51,10 @@ func readDataFromCSV(filename string) []hosts {
 }
 
 func main() {
-	filename := "config/default.csv"
-	hosts := readDataFromCSV(filename)
+	f := flag.String("f", "config/default.csv", "Specify the configuration file")
+	flag.Parse()
+
+	hosts := readDataFromCSV(*f)
 
 	for _, h := range hosts {
 		h.ping()
