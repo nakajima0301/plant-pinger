@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"sync"
 	"time"
 
 	"github.com/jszwec/csvutil"
@@ -11,8 +12,9 @@ import (
 )
 
 const (
-	pingCount   = 1
-	pingTimeout = 3 * time.Second
+	pingCount    = 5
+	pingTimeout  = 10 * time.Second
+	pingInterval = 1 * time.Second
 )
 
 type hosts struct {
@@ -26,19 +28,29 @@ func (h *hosts) ping() {
 	pinger, err := ping.NewPinger(h.Hostname)
 	if err != nil {
 		h.hasError = true
-		return
 	}
 
+	pinger.SetPrivileged(true)
 	pinger.Count = pingCount
 	pinger.Timeout = pingTimeout
+	pinger.Interval = pingInterval
 	pinger.Run()
 
 	h.Stats = pinger.Statistics()
 }
 
 func (h *hosts) result() {
+
 	if h.hasError {
-		fmt.Println("Error:", h.Name, h.Hostname)
+		fmt.Println("ERROR", h.Name, h.Hostname)
+	} else {
+		if h.Stats.PacketLoss == 0 {
+			fmt.Println("[ OK]", h.Hostname, h.Name)
+		} else if h.Stats.PacketLoss > 0 && h.Stats.PacketLoss < 100 {
+			fmt.Println("[WRN]", h.Hostname, h.Name)
+		} else {
+			fmt.Println("[ERR]", h.Hostname, h.Name)
+		}
 	}
 }
 
@@ -56,8 +68,18 @@ func main() {
 
 	hosts := readDataFromCSV(*f)
 
-	for _, h := range hosts {
-		h.ping()
-		h.result()
+	var wg sync.WaitGroup
+	for _, host := range hosts {
+		wg.Add(1)
+		h := host
+		go func() {
+			defer wg.Done()
+			h.ping()
+			h.result()
+		}()
 	}
+	wg.Wait()
+
+	fmt.Println("Press the Enter Key to terminate the console screen!")
+	fmt.Scanln() // wait for Enter Key
 }
