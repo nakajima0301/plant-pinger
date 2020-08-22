@@ -1,3 +1,4 @@
 name,hostname
 target-1,127.0.0.1
 target-2,www.example.com
+target-3,undefined.host.jp
