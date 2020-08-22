@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"runtime"
 	"sync"
 	"time"
 
@@ -28,9 +30,14 @@ func (h *hosts) ping() {
 	pinger, err := ping.NewPinger(h.Hostname)
 	if err != nil {
 		h.hasError = true
+		return
 	}
 
-	pinger.SetPrivileged(true)
+	if runtime.GOOS == "windows" {
+		pinger.SetPrivileged(true)
+	} else {
+		pinger.SetPrivileged(false)
+	}
 	pinger.Count = pingCount
 	pinger.Timeout = pingTimeout
 	pinger.Interval = pingInterval
@@ -40,9 +47,8 @@ func (h *hosts) ping() {
 }
 
 func (h *hosts) result() {
-
 	if h.hasError {
-		fmt.Println("ERROR", h.Name, h.Hostname)
+		fmt.Fprintf(os.Stderr, "[ERR] %s %s\n", h.Name, h.Hostname)
 	} else {
 		if h.Stats.PacketLoss == 0 {
 			fmt.Println("[ OK]", h.Hostname, h.Name)
